@@ -1,0 +1,59 @@
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import{getFirestore,doc,getDoc,setDoc,deleteDoc,collection,onSnapshot,query,orderBy,limit,getDocs}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const cfg={apiKey:"AIzaSyAGoz-7q-iAwalJNCMTAPx6SM2bHhyzG5w",authDomain:"nuqate.firebaseapp.com",projectId:"nuqate",storageBucket:"nuqate.firebasestorage.app",messagingSenderId:"115027824312",appId:"1:115027824312:web:06a60a4ce002aed150ae4d"};
+const TEACHERS=["saadyoyo921@gmail.com"]; // إيميلات المعلمين (بحروف صغيرة)
+const app=initializeApp(cfg),auth=getAuth(app),db=getFirestore(app),MODE=document.body.dataset.mode;
+const VERSES=[["﴿ إِنَّ مَعَ الْعُسْرِ يُسْرًا ﴾","الشرح: ٦"],["﴿ وَقُل رَّبِّ زِدْنِي عِلْمًا ﴾","طه: ١١٤"],["﴿ فَاذْكُرُونِي أَذْكُرْكُمْ ﴾","البقرة: ١٥٢"],["﴿ وَأَقِيمُوا الصَّلَاةَ ﴾","البقرة: ٤٣"],["﴿ إِنَّ اللَّهَ مَعَ الصَّابِرِينَ ﴾","البقرة: ١٥٣"],["«طلب العلم فريضة على كل مسلم»","حديث شريف"],["«أحب الأعمال إلى الله أدومها وإن قل»","متفق عليه"],["نصيحة: صلاتك في وقتها أول خطوة للنجاح","✦"]];
+const GR=["#0f8b6d,#064e3b","#6d28d9,#1e1b4b","#b45309,#7c2d12","#0369a1,#082f49","#be185d,#4c0519","#15803d,#14532d"];
+const L={ar:{go:"ابدأ",login:"الدخول بحساب Gmail",full:"اكتب اسمك الثلاثي",save:"حفظ ودخول",hw:"الواجبات",pr:"الصلاة",az:"الأذكار",st:"المذاكرة",lb:"المتصدرون",ts:"المعلم",pts:"نقطة",done:"تم",none:"لا يوجد",up:"صوّر وارفع الحل",sent:"تم الرفع ✓",next:"التالي",studied:"ذاكرت ٣٠ دقيقة (+١٠)",add:"إضافة واجب",title:"عنوان الواجب",stu:"الطلاب المسجلون",view:"عرض الحلول",wait:"ليس وقتها بعد",fin:"أحسنت! أنهيت الأذكار 🌟",nt:"هذا الحساب ليس معلماً",out:"خروج",pn:["الفجر","الظهر","العصر","المغرب","العشاء"],ln:"English"},
+en:{go:"Start",login:"Sign in with Gmail",full:"Enter your full three-part name",save:"Save & enter",hw:"Homework",pr:"Prayer",az:"Adhkar",st:"Study",lb:"Leaders",ts:"Teacher",pts:"pts",done:"Done",none:"Nothing yet",up:"Photo & upload",sent:"Uploaded ✓",next:"Next",studied:"I studied 30 min (+10)",add:"Add homework",title:"Homework title",stu:"Registered students",view:"View work",wait:"Not time yet",fin:"Well done! Adhkar finished 🌟",nt:"This account is not a teacher",out:"Sign out",pn:["Fajr","Dhuhr","Asr","Maghrib","Isha"],ln:"عربي"}};
+const AZ=["سُبْحَانَ اللَّهِ وَبِحَمْدِهِ (٣٣)","أَسْتَغْفِرُ اللَّهَ وَأَتُوبُ إِلَيْهِ (١٠٠)","لَا إِلَهَ إِلَّا اللَّهُ وَحْدَهُ لَا شَرِيكَ لَهُ، لَهُ الْمُلْكُ وَلَهُ الْحَمْدُ وَهُوَ عَلَى كُلِّ شَيْءٍ قَدِيرٌ","اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى نَبِيِّنَا مُحَمَّدٍ","لَا حَوْلَ وَلَا قُوَّةَ إِلَّا بِاللَّهِ","حَسْبِيَ اللَّهُ لَا إِلَهَ إِلَّا هُوَ عَلَيْهِ تَوَكَّلْتُ وَهُوَ رَبُّ الْعَرْشِ الْعَظِيمِ (٧)"];
+// مواعيد تقريبية للرياض (دقائق من منتصف الليل) — عدّلها حسب الفصل
+const PW=[[295,375],[700,885],[885,1030],[1030,1120],[1120,1439]];
+const S={lang:"ar",tab:MODE=="teacher"?"ts":"hw",az:0,u:null,prof:null,isT:false,hw:[],lead:[],studs:[],subs:{}};
+const t=k=>L[S.lang][k],$=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()};
+const shrink=f=>new Promise(r=>{const i=new Image();i.onload=()=>{const s=Math.min(1,900/Math.max(i.width,i.height)),c=document.createElement("canvas");c.width=i.width*s;c.height=i.height*s;c.getContext("2d").drawImage(i,0,0,c.width,c.height);r(c.toDataURL("image/jpeg",.6))};i.src=URL.createObjectURL(f)});
+function splash(){const v=VERSES[Math.floor(Math.random()*VERSES.length)],s=$("#splash");s.style.background=`linear-gradient(160deg,${GR[Math.floor(Math.random()*GR.length)]})`;
+s.innerHTML=`<div class="orn">✦ ❖ ✦</div><h1>نقاطي</h1><div class="v">${v[0]}<br><small>${v[1]}</small></div><button class="btn g" id="go">${t("go")}</button>`;
+$("#go").onclick=()=>{s.style.opacity=0;setTimeout(()=>s.remove(),500)}}
+onAuthStateChanged(auth,async u=>{S.u=u;if(!u){S.prof=null;return render()}
+ S.isT=TEACHERS.includes((u.email||"").toLowerCase());
+ if(!S.isT){const p=await getDoc(doc(db,"students",u.uid));S.prof=p.exists()?p.data():null;
+  onSnapshot(collection(db,"submissions",u.uid,"items"),q=>{S.subs={};q.docs.forEach(x=>S.subs[x.id]=x.data());render()})}
+ onSnapshot(collection(db,"homework"),q=>{S.hw=q.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>b.ts-a.ts);render()});
+ onSnapshot(query(collection(db,"leaders"),orderBy("points","desc"),limit(10)),q=>{S.lead=q.docs.map(x=>x.data());render()});
+ if(S.isT)onSnapshot(collection(db,"students"),q=>{S.studs=q.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>(b.points||0)-(a.points||0));render()});
+ render()});
+async function award(key,n){const p=S.prof;if(p.log[key])return;p.log[key]=1;p.points=(p.points||0)+n;
+ await setDoc(doc(db,"students",S.u.uid),p);await setDoc(doc(db,"leaders",S.u.uid),{name:p.name,points:p.points});render()}
+function render(){document.documentElement.lang=S.lang;document.documentElement.dir=S.lang=="ar"?"rtl":"ltr";const A=$("#app");
+ if(!S.u){A.innerHTML=`<main><div class="card" style="text-align:center"><h2>✦ نقاطي ✦</h2><button class="btn" id="si">${t("login")}</button></div></main>`;$("#si").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider());return}
+ if(MODE=="teacher"&&!S.isT){A.innerHTML=`<main><div class="card">${t("nt")}<br><button class="btn o" id="so">${t("out")}</button></div></main>`;$("#so").onclick=()=>signOut(auth);return}
+ if(MODE=="student"&&S.isT){A.innerHTML=`<main><div class="card">أنت معلم — افتح <a href="teacher.html">teacher.html</a><br><button class="btn o" id="so">${t("out")}</button></div></main>`;$("#so").onclick=()=>signOut(auth);return}
+ if(!S.prof&&!S.isT){A.innerHTML=`<main><div class="card"><div>${esc(S.u.email)}</div><input type="text" id="nm" placeholder="${t("full")}"><button class="btn" id="sv">${t("save")}</button></div></main>`;
+  $("#sv").onclick=async()=>{const n=$("#nm").value.trim();if(n.split(/\s+/).length<3){$("#nm").style.borderColor="#c00";return}
+   S.prof={name:n,email:S.u.email,points:0,log:{}};await setDoc(doc(db,"students",S.u.uid),S.prof);await setDoc(doc(db,"leaders",S.u.uid),{name:n,points:0});render()};return}
+ const tabs=S.isT?[["ts","🎓",t("ts")],["lb","🏆",t("lb")]]:[["hw","📚",t("hw")],["pr","🕌",t("pr")],["az","📿",t("az")],["st","✏️",t("st")],["lb","🏆",t("lb")]];
+ A.innerHTML=`<header><h2>✦ نقاطي</h2>${S.prof?`<b class="pts" style="font-size:20px">${S.prof.points||0} ${t("pts")}</b>`:""}<button class="btn o" id="lg">${t("ln")}</button><button class="btn o" id="th">◐</button><button class="btn o" id="so">⎋</button></header><main>${{hw:vHw,pr:vPr,az:vAz,st:vSt,lb:vLb,ts:vTs}[S.tab]()}</main><nav>${tabs.map(x=>`<button data-t="${x[0]}" class="${S.tab==x[0]?"on":""}"><b>${x[1]}</b>${x[2]}</button>`).join("")}</nav>`;
+ $("#lg").onclick=()=>{S.lang=S.lang=="ar"?"en":"ar";render()};$("#so").onclick=()=>signOut(auth);
+ $("#th").onclick=()=>{const r=document.documentElement,d=r.dataset.theme=="dark"||(!r.dataset.theme&&matchMedia("(prefers-color-scheme:dark)").matches);r.dataset.theme=d?"light":"dark"};
+ document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;render()});
+ document.querySelectorAll("[data-a]").forEach(b=>{if(b.dataset.a=="up")b.onchange=()=>act(b);else b.onclick=()=>act(b)})}
+const vHw=()=>S.hw.length?S.hw.map(h=>{const s=S.subs[h.id];return`<div class="card"><b>${esc(h.title)}</b><div class="row">${s?`<span class="done">${t("sent")}</span>`:`<label class="btn">${t("up")}<input type="file" accept="image/*" capture="environment" hidden data-a="up" data-id="${h.id}"></label>`}</div>${s?`<img class="sub" src="${s.img}">`:""}</div>`}).join(""):`<div class="card">${t("none")}</div>`;
+function vPr(){const d=today(),p=new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Riyadh",hour:"numeric",minute:"numeric",hour12:false}).formatToParts(new Date()),m=(+p[0].value%24)*60+ +p[2].value;
+ return t("pn").map((n,i)=>{const k="p:"+d+":"+i,ok=S.prof.log[k],w=m>=PW[i][0]&&m<=PW[i][1];return`<div class="card row"><b>🕌 ${n}</b>${ok?`<span class="done">✓ ${t("done")}</span>`:`<button class="btn" ${w?"":"disabled"} data-a="pr" data-k="${k}">${w?t("done")+" (+5)":t("wait")}</button>`}</div>`}).join("")}
+function vAz(){const i=S.az;if(i>=AZ.length)return`<div class="card ad">${t("fin")}</div>`;return`<div class="card"><div class="ad">${AZ[i]}</div><div class="row"><span>${i+1}/${AZ.length}</span><button class="btn g" data-a="az" data-k="a:${today()}:${i}">${t("done")} · ${t("next")} (+2)</button></div></div>`}
+function vSt(){const d=today();let n=0;for(let i=0;i<4;i++)if(S.prof.log["s:"+d+":"+i])n++;return`<div class="card"><div class="pts">${n}/4</div><button class="btn" ${n>=4?"disabled":""} data-a="st" data-k="s:${d}:${n}">${t("studied")}</button></div>`}
+const vLb=()=>S.lead.length?S.lead.map((x,i)=>`<div class="card row"><span class="rank">${["🥇","🥈","🥉"][i]||i+1}</span><b style="flex:1">${esc(x.name)}</b><span class="pts" style="font-size:20px">${x.points||0}</span></div>`).join(""):`<div class="card">${t("none")}</div>`;
+const vTs=()=>`<div class="card"><b>${t("add")}</b><input type="text" id="ht" placeholder="${t("title")}"><button class="btn g" data-a="addhw">${t("add")}</button>${S.hw.map(h=>`<div class="row"><span>• ${esc(h.title)}</span><button class="btn o" data-a="delhw" data-id="${h.id}">✕</button></div>`).join("")}</div><h3>${t("stu")} (${S.studs.length})</h3>${S.studs.map(s=>`<div class="card"><div class="row"><b>${esc(s.name)}</b><span class="pts" style="font-size:20px">${s.points||0}</span></div><small>${esc(s.email)}</small><div><button class="btn o" data-a="subs" data-id="${s.id}">${t("view")}</button></div><div id="u${s.id}"></div></div>`).join("")}`;
+async function act(b){const a=b.dataset.a;
+ if(a=="pr"||a=="st")award(b.dataset.k,a=="pr"?5:10);
+ if(a=="az"){await award(b.dataset.k,2);S.az++;render()}
+ if(a=="addhw"){const v=$("#ht").value.trim();if(v)await setDoc(doc(db,"homework",String(Date.now())),{title:v,ts:Date.now()})}
+ if(a=="delhw")await deleteDoc(doc(db,"homework",b.dataset.id));
+ if(a=="up"){const f=b.files[0];if(!f)return;const img=await shrink(f);await setDoc(doc(db,"submissions",S.u.uid,"items",b.dataset.id),{img,ts:Date.now()});await award("h:"+b.dataset.id,10)}
+ if(a=="subs"){const q=await getDocs(collection(db,"submissions",b.dataset.id,"items"));$("#u"+b.dataset.id).innerHTML=q.docs.map(x=>{const h=S.hw.find(y=>y.id==x.id);return`<div><small>${esc(h?h.title:x.id)}</small><img class="sub" src="${x.data().img}"></div>`}).join("")||t("none")}}
+splash();render();
